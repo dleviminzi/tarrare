@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,14 +15,25 @@ var (
 )
 
 func main() {
-	directory := flag.String("dir", ".", "Directory to process")
+	directory := flag.String("dir", "", "Directory to process (default: current directory)")
 	outputFile := flag.String("output", "", "Output file name (default: current directory name)")
 	ignoreFlag := flag.String("ignore", "", "Comma-separated list of files/directories to ignore")
 	flag.Parse()
 
+	// Handle default directory
+	if *directory == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			fmt.Printf("Error getting current directory: %v\n", err)
+			return
+		}
+		*directory = currentDir
+	}
+
 	loadGlobalIgnoreList()
 	ignoreList := append(globalIgnoreList, strings.Split(*ignoreFlag, ",")...)
 
+	// Handle default output file name
 	if *outputFile == "" {
 		*outputFile = filepath.Base(*directory) + ".txt"
 	}
@@ -37,7 +47,7 @@ func main() {
 
 	fmt.Fprintf(out, "Root Directory: %s\n\n", filepath.Base(*directory))
 
-	err = processDirectory(*directory, *directory, ignoreList, out, 0)
+	err = processDirectory(*directory, *directory, ignoreList, out)
 	if err != nil {
 		fmt.Printf("Error processing directory: %v\n", err)
 		return
@@ -45,7 +55,6 @@ func main() {
 
 	fmt.Printf("Successfully created %s\n", *outputFile)
 }
-
 func loadGlobalIgnoreList() {
 	file, err := os.Open(globalIgnoreFile)
 	if err != nil {
@@ -59,16 +68,16 @@ func loadGlobalIgnoreList() {
 	}
 }
 
-func processDirectory(baseDir, currentDir string, ignoreList []string, out *os.File, depth int) error {
-	entries, err := ioutil.ReadDir(currentDir)
+func processDirectory(baseDir, currentDir string, ignoreList []string, out *os.File) error {
+	entries, err := os.ReadDir(currentDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("error reading directory %s: %v", currentDir, err)
 	}
 
 	for _, entry := range entries {
 		relativePath, err := filepath.Rel(baseDir, filepath.Join(currentDir, entry.Name()))
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting relative path for %s: %v", entry.Name(), err)
 		}
 
 		if shouldIgnore(relativePath, ignoreList) {
@@ -76,14 +85,16 @@ func processDirectory(baseDir, currentDir string, ignoreList []string, out *os.F
 		}
 
 		if entry.IsDir() {
-			err = processDirectory(baseDir, filepath.Join(currentDir, entry.Name()), ignoreList, out, depth+1)
+			err = processDirectory(baseDir, filepath.Join(currentDir, entry.Name()), ignoreList, out)
 			if err != nil {
-				return err
+				fmt.Printf("Warning: Error processing directory %s: %v\n", relativePath, err)
+				continue
 			}
 		} else {
 			err = processFile(baseDir, filepath.Join(currentDir, entry.Name()), out)
 			if err != nil {
-				return err
+				fmt.Printf("Warning: Error processing file %s: %v\n", relativePath, err)
+				continue
 			}
 		}
 	}
@@ -92,14 +103,23 @@ func processDirectory(baseDir, currentDir string, ignoreList []string, out *os.F
 }
 
 func processFile(baseDir, filePath string, out *os.File) error {
-	relativePath, err := filepath.Rel(baseDir, filePath)
+	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting file info: %v", err)
 	}
 
-	content, err := ioutil.ReadFile(filePath)
+	if !fileInfo.Mode().IsRegular() {
+		return fmt.Errorf("not a regular file")
+	}
+
+	relativePath, err := filepath.Rel(baseDir, filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting relative path: %v", err)
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("error reading file: %v", err)
 	}
 
 	fmt.Fprintf(out, "--- BEGIN FILE: %s ---\n", relativePath)
