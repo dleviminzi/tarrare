@@ -12,6 +12,7 @@ import (
 var (
 	globalIgnoreFile = filepath.Join(os.Getenv("HOME"), ".tarrareignore")
 	globalIgnoreList []string
+	outputFileName   string
 )
 
 func main() {
@@ -32,13 +33,16 @@ func main() {
 
 	loadGlobalIgnoreList()
 	ignoreList := append(globalIgnoreList, strings.Split(*ignoreFlag, ",")...)
-
-	// Handle default output file name
 	if *outputFile == "" {
-		*outputFile = filepath.Base(*directory) + ".txt"
+		outputFileName = filepath.Base(*directory) + ".txt"
+	} else {
+		outputFileName = *outputFile
 	}
 
-	out, err := os.Create(*outputFile)
+	// Add the output file to the ignore list
+	ignoreList = append(ignoreList, outputFileName)
+
+	out, err := os.Create(outputFileName)
 	if err != nil {
 		fmt.Printf("Error creating output file: %v\n", err)
 		return
