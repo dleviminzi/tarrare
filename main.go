@@ -7,12 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var (
-	globalIgnoreFile = filepath.Join(os.Getenv("HOME"), ".tarrareignore")
-	globalIgnoreList []string
-	outputFileName   string
+	configFile        = filepath.Join(os.Getenv("HOME"), ".tarrare")
+	globalIgnoreFile  = filepath.Join(os.Getenv("HOME"), ".tarrareignore")
+	globalIgnoreList  []string
+	outputFileName    string
+	defaultOutputPath string
 )
 
 func main() {
@@ -32,11 +35,22 @@ func main() {
 	}
 
 	loadGlobalIgnoreList()
+	loadTarrareConfig(*directory)
 	ignoreList := append(globalIgnoreList, strings.Split(*ignoreFlag, ",")...)
+
+	// Generate filename with current date
+	currentDate := time.Now().Format("2006-01-02")
 	if *outputFile == "" {
-		outputFileName = filepath.Base(*directory) + ".txt"
+		if defaultOutputPath != "" {
+			outputFileName = filepath.Join(defaultOutputPath, fmt.Sprintf("%s_%s.txt", filepath.Base(*directory), currentDate))
+		} else {
+			outputFileName = fmt.Sprintf("%s_%s.txt", filepath.Base(*directory), currentDate)
+		}
 	} else {
-		outputFileName = *outputFile
+		// If output file is specified, add date before the extension
+		ext := filepath.Ext(*outputFile)
+		baseName := strings.TrimSuffix(*outputFile, ext)
+		outputFileName = fmt.Sprintf("%s_%s%s", baseName, currentDate, ext)
 	}
 
 	// Add the output file to the ignore list
@@ -57,8 +71,9 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Successfully created %s\n", *outputFile)
+	fmt.Printf("Successfully created %s\n", outputFileName)
 }
+
 func loadGlobalIgnoreList() {
 	file, err := os.Open(globalIgnoreFile)
 	if err != nil {
@@ -69,6 +84,23 @@ func loadGlobalIgnoreList() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		globalIgnoreList = append(globalIgnoreList, strings.TrimSpace(scanner.Text()))
+	}
+}
+
+func loadTarrareConfig() {
+	file, err := os.Open(configFile)
+	if err != nil {
+		return // It's okay if the file doesn't exist
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "output_path=") {
+			defaultOutputPath = strings.TrimPrefix(line, "output_path=")
+			break
+		}
 	}
 }
 
