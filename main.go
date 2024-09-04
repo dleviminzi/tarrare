@@ -35,16 +35,16 @@ func main() {
 	}
 
 	loadGlobalIgnoreList()
-	loadTarrareConfig(*directory)
+	loadTarrareConfig()
 	ignoreList := append(globalIgnoreList, strings.Split(*ignoreFlag, ",")...)
 
 	// Generate filename with current date
 	currentDate := time.Now().Format("2006-01-02")
 	if *outputFile == "" {
 		if defaultOutputPath != "" {
-			outputFileName = filepath.Join(defaultOutputPath, fmt.Sprintf("%s_%s.txt", filepath.Base(*directory), currentDate))
+			outputFileName = filepath.Join(defaultOutputPath, fmt.Sprintf("%s_%s.txt", currentDate, filepath.Base(*directory)))
 		} else {
-			outputFileName = fmt.Sprintf("%s_%s.txt", filepath.Base(*directory), currentDate)
+			outputFileName = fmt.Sprintf("%s_%s.txt", currentDate, filepath.Base(*directory))
 		}
 	} else {
 		// If output file is specified, add date before the extension
